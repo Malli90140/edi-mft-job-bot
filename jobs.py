@@ -1,96 +1,99 @@
 import requests
+import xml.etree.ElementTree as ET
 
 TOKEN = "7946541419:AAHziIBBLAd3LBnfBzawpr3lYGC8nr5Rq5U"
 CHAT_ID = "1268443681"
 
-# MUST HAVE (at least one required — core skills)
-MANDATORY = [
+KEYWORDS = [
     "sterling integrator",
     "sterling file gateway",
     "ibm sterling",
     "electronic data interchange",
     "edi",
     "managed file transfer",
-    "mft"
-]
-
-# GOOD MATCH (extra relevance for your profile)
-GOOD = [
-    "x12","edifact","idoc",
-    "as2","sftp","ftp","oftp",
-    "trading partner",
+    "mft",
     "b2b integration",
-    "integration support",
-    "production support",
-    "edi analyst",
-    "edi support",
-    "b2b support",
-    "map editor",
-    "sterling b2bi",
-    "seeburger",
-    "opentext",
-    "service now",
-    "servicenow"
 ]
 
-# BAD MATCH (reject unrelated jobs)
-EXCLUDE = [
-    "java developer",
-    "full stack",
-    "react",
-    "angular",
-    "sales",
-    "marketing",
-    "data engineer",
-    "ai engineer",
-    "frontend",
-    "backend developer",
-    "ui developer",
-    "python developer",
-    "machine learning",
-    "devops engineer",
-    "cloud architect"
-]
+HEADERS={"User-Agent":"Mozilla/5.0"}
 
-def send_telegram(msg):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+def send(msg):
+    url=f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(url,data={"chat_id":CHAT_ID,"text":msg})
 
-def relevant(job):
-    text = (
-        job["title"] + " " +
-        job["company_name"] + " " +
-        job.get("description","")
-    ).lower()
+def match(text):
+    return any(k in text.lower() for k in KEYWORDS)
 
-    # Reject unwanted roles
-    if any(b in text for b in EXCLUDE):
-        return False
-
-    # Must contain core EDI/MFT skills
-    if not any(m in text for m in MANDATORY):
-        return False
-
-    # Must also have at least one supporting skill
-    score = sum(1 for g in GOOD if g in text)
-    return score >= 1
-
-def get_jobs():
-    url = "https://remotive.com/api/remote-jobs"
-    data = requests.get(url).json()
-
+# ---------- LinkedIn ----------
+def linkedin():
+    urls=[
+    "https://www.linkedin.com/jobs-guest/jobs/rss/?keywords=EDI",
+    "https://www.linkedin.com/jobs-guest/jobs/rss/?keywords=IBM%20Sterling%20Integrator",
+    "https://www.linkedin.com/jobs-guest/jobs/rss/?keywords=Managed%20File%20Transfer"
+    ]
     results=[]
-    for job in data["jobs"]:
-        if relevant(job):
-            results.append(f"🔹 {job['title']} - {job['company_name']}\n{job['url']}")
-
+    for url in urls:
+        r=requests.get(url,headers=HEADERS)
+        root=ET.fromstring(r.content)
+        for item in root.findall(".//item"):
+            title=item.find("title").text
+            link=item.find("link").text
+            if match(title):
+                results.append(f"🔹 {title}\n{link}")
     return results
 
-jobs=get_jobs()
+# ---------- Naukri ----------
+def naukri():
+    results=[]
+    try:
+        url="https://www.naukri.com/jobapi/v3/search?keyword=EDI&noOfResults=20"
+        r=requests.get(url,headers=HEADERS).json()
+        for job in r.get("jobDetails",[]):
+            title=job.get("title","")
+            company=job.get("companyName","")
+            link="https://www.naukri.com"+job.get("jdURL","")
+            if match(title+" "+company):
+                results.append(f"🔹 {title} - {company}\n{link}")
+    except:
+        pass
+    return results
 
-if jobs:
-    message="🎯 Matching EDI/MFT Jobs For You\n\n"+"\n\n".join(jobs[:20])
+# ---------- Hirist ----------
+def hirist():
+    results=[]
+    try:
+        url="https://www.hirist.tech/api/v1/search/jobs?q=edi"
+        r=requests.get(url,headers=HEADERS).json()
+        for job in r.get("jobs",[]):
+            title=job.get("title","")
+            company=job.get("company_name","")
+            link="https://www.hirist.tech"+job.get("url","")
+            if match(title+" "+company):
+                results.append(f"🔹 {title} - {company}\n{link}")
+    except:
+        pass
+    return results
+
+# ---------- Foundit ----------
+def foundit():
+    results=[]
+    try:
+        url="https://www.foundit.in/srp/results?query=EDI"
+        r=requests.get(url,headers=HEADERS).text
+        # simple detection
+        if "EDI" in r:
+            results.append("🔹 Foundit has EDI jobs today\nhttps://www.foundit.in")
+    except:
+        pass
+    return results
+
+all_jobs = list(dict.fromkeys(
+    linkedin() + naukri() + hirist() + foundit()
+))
+
+if all_jobs:
+    msg="🔥 Daily EDI/MFT Jobs (All Portals)\n\n"+"\n\n".join(all_jobs[:40])
 else:
-    message="No matching Sterling/EDI/MFT jobs today"
+    msg="No EDI/MFT jobs found today"
 
-send_telegram(message)
+send(msg)
