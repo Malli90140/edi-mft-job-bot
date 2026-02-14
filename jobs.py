@@ -1,17 +1,18 @@
-import requests, xml.etree.ElementTree as ET
+import requests
+import xml.etree.ElementTree as ET
 
-TOKEN = "YOUR_TOKEN"
+TOKEN = "7946541419:AAHziIBBLAd3LBnfBzawpr3lYGC8nr5Rq5U"
 CHAT_ID = "1268443681"
 
-KEYWORDS=[
-"edi",
-"electronic data interchange",
-"ibm sterling",
-"sterling integrator",
-"sterling file gateway",
-"managed file transfer",
-"mft",
-"b2b integration"
+KEYWORDS = [
+    "edi",
+    "electronic data interchange",
+    "ibm sterling",
+    "sterling integrator",
+    "sterling file gateway",
+    "managed file transfer",
+    "mft",
+    "b2b integration",
 ]
 
 def send(msg):
@@ -21,21 +22,19 @@ def send(msg):
 def match(text):
     return any(k in text.lower() for k in KEYWORDS)
 
-def google_jobs():
-    queries=[
-    "edi jobs india",
-    "ibm sterling integrator jobs",
-    "managed file transfer engineer",
-    "sterling file gateway jobs"
+def indeed_jobs():
+    feeds=[
+    "https://in.indeed.com/rss?q=EDI",
+    "https://in.indeed.com/rss?q=IBM+Sterling+Integrator",
+    "https://in.indeed.com/rss?q=Managed+File+Transfer",
+    "https://in.indeed.com/rss?q=Sterling+File+Gateway"
     ]
 
     jobs=[]
 
-    for q in queries:
-        url=f"https://news.google.com/rss/search?q={q.replace(' ','+')}&hl=en-IN&gl=IN&ceid=IN:en"
-
+    for url in feeds:
         try:
-            r=requests.get(url,timeout=20)
+            r=requests.get(url,timeout=20,headers={"User-Agent":"Mozilla/5.0"})
             root=ET.fromstring(r.content)
 
             for item in root.findall(".//item"):
@@ -50,9 +49,9 @@ def google_jobs():
 
     return list(dict.fromkeys(jobs))
 
-results=google_jobs()
+results=indeed_jobs()
 
 if results:
-    send("🎯 Latest EDI/MFT Jobs\n\n"+"\n\n".join(results[:30]))
+    send("🎯 Latest EDI/MFT Jobs (Indeed)\n\n"+"\n\n".join(results[:30]))
 else:
-    send("No jobs found today")
+    send("No EDI/MFT jobs found today")
