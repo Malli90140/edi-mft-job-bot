@@ -4,6 +4,8 @@ import xml.etree.ElementTree as ET
 TOKEN = "7946541419:AAHziIBBLAd3LBnfBzawpr3lYGC8nr5Rq5U"
 CHAT_ID = "1268443681"
 
+HEADERS={"User-Agent":"Mozilla/5.0"}
+
 KEYWORDS = [
     "sterling integrator",
     "sterling file gateway",
@@ -15,8 +17,6 @@ KEYWORDS = [
     "b2b integration",
 ]
 
-HEADERS={"User-Agent":"Mozilla/5.0"}
-
 def send(msg):
     url=f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(url,data={"chat_id":CHAT_ID,"text":msg})
@@ -24,7 +24,7 @@ def send(msg):
 def match(text):
     return any(k in text.lower() for k in KEYWORDS)
 
-# ---------- LinkedIn ----------
+# ---------- LinkedIn (safe RSS parsing) ----------
 def linkedin():
     urls=[
     "https://www.linkedin.com/jobs-guest/jobs/rss/?keywords=EDI",
@@ -33,13 +33,24 @@ def linkedin():
     ]
     results=[]
     for url in urls:
-        r=requests.get(url,headers=HEADERS)
-        root=ET.fromstring(r.content)
-        for item in root.findall(".//item"):
-            title=item.find("title").text
-            link=item.find("link").text
-            if match(title):
-                results.append(f"🔹 {title}\n{link}")
+        try:
+            r=requests.get(url,headers=HEADERS,timeout=15)
+
+            # If LinkedIn blocks, it returns HTML not RSS
+            if "<rss" not in r.text.lower():
+                continue
+
+            root=ET.fromstring(r.content)
+
+            for item in root.findall(".//item"):
+                title=item.find("title").text
+                link=item.find("link").text
+                if match(title):
+                    results.append(f"🔹 {title}\n{link}")
+
+        except:
+            continue
+
     return results
 
 # ---------- Naukri ----------
@@ -80,17 +91,18 @@ def foundit():
     try:
         url="https://www.foundit.in/srp/results?query=EDI"
         r=requests.get(url,headers=HEADERS).text
-        # simple detection
-        if "EDI" in r:
+        if "edi" in r.lower():
             results.append("🔹 Foundit has EDI jobs today\nhttps://www.foundit.in")
     except:
         pass
     return results
 
+# ---------- Combine ----------
 all_jobs = list(dict.fromkeys(
     linkedin() + naukri() + hirist() + foundit()
 ))
 
+# ---------- Send ----------
 if all_jobs:
     msg="🔥 Daily EDI/MFT Jobs (All Portals)\n\n"+"\n\n".join(all_jobs[:40])
 else:
